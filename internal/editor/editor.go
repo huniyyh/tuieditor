@@ -313,11 +313,26 @@ func (m Model) cursorVisRow(vrows []visualRow) int {
 	expCursorCol := m.expandedCol(m.cursorRow, m.cursorCol)
 	best := 0
 	for i, vr := range vrows {
-		if vr.lineIdx == m.cursorRow && vr.startCol <= expCursorCol {
-			best = i
+		if vr.lineIdx != m.cursorRow {
+			if vr.lineIdx > m.cursorRow {
+				break
+			}
+			continue
 		}
-		if vr.lineIdx > m.cursorRow {
-			break
+		// Determine if cursor belongs to this vrow.
+		// A cursor at expCursorCol belongs to this vrow if:
+		//   startCol <= expCursorCol < endCol  (for non-last vrows of this line)
+		// OR
+		//   startCol <= expCursorCol           (for the last vrow of this line)
+		// We achieve this by: pick the last vrow where startCol <= expCursorCol,
+		// BUT skip a vrow if expCursorCol == its endCol AND there's a next vrow for the same line.
+		isLastVrow := i == len(vrows)-1 || vrows[i+1].lineIdx != vr.lineIdx
+		if vr.startCol <= expCursorCol {
+			if expCursorCol == vr.endCol && !isLastVrow {
+				// Cursor is exactly at the boundary — belongs to the next vrow
+				continue
+			}
+			best = i
 		}
 	}
 	return best
@@ -421,12 +436,21 @@ func (m *Model) moveCursorUp() {
 	expCol := m.expandedCol(m.cursorRow, m.cursorCol)
 	prevVis := vrows[curVis-1]
 	m.cursorRow = prevVis.lineIdx
+	expLineLen := len([]rune(expandTabs(m.lines[m.cursorRow])))
+	isLastVrowOfLine := prevVis.endCol >= expLineLen
+	// Clamp expCol to target visual row's range
 	if expCol < prevVis.startCol {
 		expCol = prevVis.startCol
 	}
-	expLineLen := len([]rune(expandTabs(m.lines[m.cursorRow])))
-	if expCol > expLineLen {
-		expCol = expLineLen
+	if isLastVrowOfLine {
+		if expCol > expLineLen {
+			expCol = expLineLen
+		}
+	} else {
+		// On non-last vrow, cursor can only be at startCol..endCol-1
+		if expCol >= prevVis.endCol {
+			expCol = prevVis.endCol - 1
+		}
 	}
 	m.cursorCol = m.runeColFromExpanded(m.cursorRow, expCol)
 }
@@ -441,12 +465,21 @@ func (m *Model) moveCursorDown() {
 	expCol := m.expandedCol(m.cursorRow, m.cursorCol)
 	nextVis := vrows[curVis+1]
 	m.cursorRow = nextVis.lineIdx
+	expLineLen := len([]rune(expandTabs(m.lines[m.cursorRow])))
+	isLastVrowOfLine := nextVis.endCol >= expLineLen
+	// Clamp expCol to target visual row's range
 	if expCol < nextVis.startCol {
 		expCol = nextVis.startCol
 	}
-	expLineLen := len([]rune(expandTabs(m.lines[m.cursorRow])))
-	if expCol > expLineLen {
-		expCol = expLineLen
+	if isLastVrowOfLine {
+		if expCol > expLineLen {
+			expCol = expLineLen
+		}
+	} else {
+		// On non-last vrow, cursor can only be at startCol..endCol-1
+		if expCol >= nextVis.endCol {
+			expCol = nextVis.endCol - 1
+		}
 	}
 	m.cursorCol = m.runeColFromExpanded(m.cursorRow, expCol)
 }

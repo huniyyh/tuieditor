@@ -1,1 +1,6 @@
 tuieditor
+/.idea/.gitignore
+/.idea/go.imports.xml
+/.idea/modules.xml
+/.idea/TuiEditor.iml
+/.idea/vcs.xml
